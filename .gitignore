@@ -1,0 +1,27 @@
+# Credentials.
+#
+# The runbooks in this repo walk a user through generating real API keys,
+# OAuth client secrets and refresh tokens, and store them in a .env file
+# (see storingsecrets.md). Never commit that file.
+.env
+.env.*
+!.env.example
+*.env
+
+# Anything else that tends to hold credentials
+*.pem
+*.key
+*.p12
+credentials.json
+client_secret*.json
+token.json
+
+# Node
+node_modules/
+npm-debug.log*
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+*.swp
+*~
