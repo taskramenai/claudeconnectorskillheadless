@@ -1,0 +1,61 @@
+name: Notify TaskRamen on change
+
+# When this repo's `main` changes, ping the downstream TaskRamen repo so its
+# "Sync vendored connector" workflow re-vendors this folder and opens a PR.
+# This is the upstream half of the cross-repo auto-sync; the other half is a
+# `sync-connector.yml` workflow in the target repo, which listens for
+# `repository_dispatch` of type `connector-updated`.
+#
+# The target repo is NOT hardcoded here — it comes from a repository variable,
+# so this file carries no account or repo name and can be published as-is.
+#
+# ── REQUIRED ONE-TIME SETUP ───────────────────────────────────────────────
+# Settings → Secrets and variables → Actions:
+#
+#   Variables tab → New repository variable
+#     Name:  SYNC_TARGET_REPO
+#     Value: <owner>/<repo> of the downstream repo to notify
+#
+#   Secrets tab → New repository secret
+#     Name:  TASKRAMEN_DISPATCH_TOKEN
+#     Value: a fine-grained PAT owned by the account that owns the target
+#            repo, granting  <target repo> → Contents: Read and write
+#
+# A PAT is required: the /dispatches endpoint needs write access to the target
+# repo, and the built-in GITHUB_TOKEN is scoped to this repo only.
+#
+# This workflow only fires from the default branch (main).
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}   # allow manual "Run workflow" to test the wiring
+
+permissions:
+  contents: read
+
+concurrency:
+  group: notify-taskramen
+  cancel-in-progress: true
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger downstream connector sync
+        env:
+          GH_TOKEN: ${{ secrets.TASKRAMEN_DISPATCH_TOKEN }}
+          TARGET_REPO: ${{ vars.SYNC_TARGET_REPO }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::error::TASKRAMEN_DISPATCH_TOKEN secret is not set — cannot notify the downstream repo."
+            exit 1
+          fi
+          if [ -z "${TARGET_REPO:-}" ]; then
+            echo "::error::SYNC_TARGET_REPO variable is not set — expected <owner>/<repo>."
+            exit 1
+          fi
+          gh api -X POST "repos/${TARGET_REPO}/dispatches" \
+            -f event_type=connector-updated
+          echo "Dispatched 'connector-updated' to ${TARGET_REPO}."
